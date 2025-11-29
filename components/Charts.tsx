@@ -22,7 +22,10 @@ const chartOptions = {
     tooltip: {
       backgroundColor: 'rgba(0, 0, 0, 0.8)',
       padding: 12,
-      titleFont: { size: 14, weight: 'bold' },
+      titleFont: { 
+        size: 14, 
+        weight: 'bold' as const 
+      },
       bodyFont: { size: 13 },
       cornerRadius: 8,
     }
