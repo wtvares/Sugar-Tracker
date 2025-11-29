@@ -56,14 +56,19 @@ export default function DailyNewPage() {
     router.push('/')
   }
 
-  const toggleReason = (r: string) => {
-    const current = new Set(watch('reasons'))
-    if (current.has(r)) current.delete(r) else current.add(r)
-    // Typescript-friendly update
-    const updated = Array.from(current) as string[]
-    // @ts-ignore
-    setValue('reasons', updated)
-  }
+const toggleReason = (r: string) => {
+const current = new Set(watch('reasons') as string[])
+
+if (current.has(r)) {
+current.delete(r)
+} else {
+current.add(r)
+}
+
+const updated = Array.from(current) as string[]
+setValue('reasons', updated, { shouldDirty: true, shouldValidate: true })
+}
+
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
