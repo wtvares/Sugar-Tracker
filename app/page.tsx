@@ -1,4 +1,6 @@
 'use client'
+import { useSession } from 'next-auth/react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import StatCard from '@/components/StatCard'
 import { Storage } from '@/lib/storage'
@@ -7,8 +9,43 @@ import { LineChart, PieChart, BarChart } from '@/components/Charts'
 import { formatNice } from '@/lib/date'
 
 export default function Page() {
-  const dailies = Storage.listDaily()
-  const today = Storage.todayDaily()
+  const { data: session } = useSession()
+  const [dailies, setDailies] = useState<any[]>([])
+  const [today, setToday] = useState<any>(null)
+  const [weekly, setWeekly] = useState<any[]>([])
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (session?.user?.id) {
+        const [dailyList, todayData, weeklyList] = await Promise.all([
+          Storage.listDaily(session.user.id),
+          Storage.todayDaily(session.user.id),
+          Storage.listWeekly(session.user.id)
+        ])
+        setDailies(dailyList)
+        setToday(todayData)
+        setWeekly(weeklyList)
+      } else {
+        // Fallback to localStorage - these are now async too, but can work without await for initial load
+        // For better UX, you might want to make these async as well
+        try {
+          const dailyList = await Storage.listDaily()
+          const todayData = await Storage.todayDaily()
+          const weeklyList = await Storage.listWeekly()
+          setDailies(dailyList)
+          setToday(todayData)
+          setWeekly(weeklyList)
+        } catch {
+          // If async fails, set empty arrays
+          setDailies([])
+          setToday(null)
+          setWeekly([])
+        }
+      }
+    }
+    loadData()
+  }, [session])
+
   const summary7 = lastNDays(dailies, 7)
   const streak = computeStreak(dailies)
 

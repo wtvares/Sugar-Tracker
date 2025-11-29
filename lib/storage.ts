@@ -2,6 +2,7 @@
 import { DailyCheckIn, WeeklyReflection, Preferences } from './types'
 import { uid } from './id'
 import { todayISO } from './date'
+import { createClient } from '@supabase/supabase-js'
 
 const DAILY_KEY = 'ct_daily'
 const WEEKLY_KEY = 'ct_weekly'
