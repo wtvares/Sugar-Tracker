@@ -95,10 +95,17 @@ export default function DailyNewPage() {
           <label className="label">Reason for craving</label>
           <div className="flex flex-wrap gap-2">
             {REASONS.map(r => (
-              <button type="button" key={r} onClick={()=>toggleReason(r)} className={`badge ${watch('reasons').includes(r) ? 'bg-mint-200 text-mint-900' : ''}`}>{r}</button>
+              <button 
+                type="button" 
+                key={r} 
+                onClick={()=>toggleReason(r)} 
+                className={`badge ${watch('reasons').includes(r) ? 'active' : ''}`}
+              >
+                {r}
+              </button>
             ))}
           </div>
-          {errors.reasons && <p className="text-red-600 text-sm mt-1">{String(errors.reasons.message)}</p>}
+          {errors.reasons && <p className="text-red-600 text-sm mt-2">{String(errors.reasons.message)}</p>}
         </div>
         <div>
           <label className="label">Did you use the 5-minute pause?</label>
