@@ -7,8 +7,8 @@
   --card: #ffffff;
   --text: #2b2b2b;
   --muted: #6b7280;
-  --primary: #8b7fc0; /* lavender-500 */
-  --accent: #3dbb8d;  /* mint-500 */
+  --primary: #8b7fc0;
+  --accent: #3dbb8d;
 }
 
 html, body, #__next { height: 100%; }

@@ -45,11 +45,9 @@ const config: Config = {
           900: '#48423a'
         }
       },
-      borderRadius: {
-        'xl': '1rem'
-      }
-    },
+      borderRadius: { 'xl': '1rem' }
+    }
   },
-  plugins: [],
+  plugins: []
 }
 export default config

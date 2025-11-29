@@ -16,7 +16,7 @@ export default function SettingsPage() {
 
   const save = () => {
     Storage.setPrefs({ remindersEnabled, checkInHour, name })
-    if (remindersEnabled && 'Notification' in window) {
+    if (remindersEnabled && typeof window !== 'undefined' && 'Notification' in window) {
       Notification.requestPermission()
     }
     alert('Preferences saved')
@@ -35,7 +35,7 @@ export default function SettingsPage() {
   const importData = (file: File) => {
     const reader = new FileReader()
     reader.onload = () => {
-      try { Storage.importAll(reader.result as string); alert('Import complete. Refresh the page to see updates.')} catch { alert('Invalid file') }
+      try { Storage.importAll(reader.result as string); alert('Import complete. Refresh the page to see updates.') } catch { alert('Invalid file') }
     }
     reader.readAsText(file)
   }

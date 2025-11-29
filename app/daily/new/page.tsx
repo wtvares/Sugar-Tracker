@@ -56,19 +56,16 @@ export default function DailyNewPage() {
     router.push('/')
   }
 
-const toggleReason = (r: string) => {
-const current = new Set(watch('reasons') as string[])
-
-if (current.has(r)) {
-current.delete(r)
-} else {
-current.add(r)
-}
-
-const updated = Array.from(current) as string[]
-setValue('reasons', updated, { shouldDirty: true, shouldValidate: true })
-}
-
+  const toggleReason = (r: string) => {
+    const current = new Set(watch('reasons') as string[])
+    if (current.has(r)) {
+      current.delete(r)
+    } else {
+      current.add(r)
+    }
+    const updated = Array.from(current) as string[]
+    setValue('reasons', updated, { shouldDirty: true, shouldValidate: true })
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -101,7 +98,7 @@ setValue('reasons', updated, { shouldDirty: true, shouldValidate: true })
               <button type="button" key={r} onClick={()=>toggleReason(r)} className={`badge ${watch('reasons').includes(r) ? 'bg-mint-200 text-mint-900' : ''}`}>{r}</button>
             ))}
           </div>
-          {errors.reasons && <p className="text-red-600 text-sm mt-1">{errors.reasons.message as any}</p>}
+          {errors.reasons && <p className="text-red-600 text-sm mt-1">{String(errors.reasons.message)}</p>}
         </div>
         <div>
           <label className="label">Did you use the 5-minute pause?</label>
