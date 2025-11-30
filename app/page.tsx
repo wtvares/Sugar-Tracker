@@ -136,7 +136,7 @@ export default function Page() {
         <div className="section">
           <div className="section-title">Weekly Reflections</div>
           <div className="mt-2 space-y-1">
-            {Storage.listWeekly().slice().reverse().slice(0,5).map(w => (
+            {weekly.slice().reverse().slice(0,5).map(w => (
               <Link 
                 key={w.id} 
                 href={`/weekly/${w.id}`} 
@@ -156,13 +156,13 @@ export default function Page() {
                 </div>
               </Link>
             ))}
-            {Storage.listWeekly().length === 0 && (
+            {weekly.length === 0 && (
               <div className="empty-state py-6">No reflections yet</div>
             )}
-            {Storage.listWeekly().length > 0 && (
+            {weekly.length > 0 && (
               <div className="mt-3 pt-2">
                 <Link className="text-sm font-medium text-lavender-700 hover:text-lavender-800 hover:underline" href="/weekly/history">
-                  View all ({Storage.listWeekly().length})
+                  View all ({weekly.length})
                 </Link>
               </div>
             )}
