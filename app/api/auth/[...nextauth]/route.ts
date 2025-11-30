@@ -3,13 +3,16 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
-// Only create Supabase client if env vars exist
+// Check environment variables
+if (!process.env.NEXTAUTH_SECRET) {
+  console.error('NEXTAUTH_SECRET is not set!')
+}
+
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   
   if (!url || !key) {
-    console.error('Supabase environment variables not configured')
     return null
   }
   
@@ -41,14 +44,13 @@ const authOptions: NextAuthOptions = {
 
         const supabase = getSupabaseClient()
         if (!supabase) {
-          console.error('Supabase not configured - authentication disabled')
+          console.error('Supabase not configured')
           return null
         }
 
         try {
           const parsed = loginSchema.parse(credentials)
           
-          // Check if user exists
           const { data: user, error: fetchError } = await supabase
             .from('users')
             .select('*')
@@ -56,12 +58,11 @@ const authOptions: NextAuthOptions = {
             .single()
 
           if (fetchError || !user) {
-            // Try to create new user
             const { data: newUser, error: createError } = await supabase
               .from('users')
               .insert({
                 email: parsed.email,
-                password_hash: parsed.password, // In production, hash this!
+                password_hash: parsed.password,
                 created_at: new Date().toISOString()
               })
               .select()
@@ -71,7 +72,6 @@ const authOptions: NextAuthOptions = {
               return null
             }
 
-            // Verify password (in production, use bcrypt)
             if (newUser.password_hash === parsed.password) {
               return {
                 id: newUser.id,
@@ -81,7 +81,6 @@ const authOptions: NextAuthOptions = {
             return null
           }
 
-          // Verify password (in production, use bcrypt)
           if (user.password_hash === parsed.password) {
             return {
               id: user.id,
@@ -115,6 +114,11 @@ const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+}
+
+// Only export handler if NEXTAUTH_SECRET exists
+if (!process.env.NEXTAUTH_SECRET) {
+  console.error('ERROR: NEXTAUTH_SECRET environment variable is not set!')
 }
 
 const handler = NextAuth(authOptions)
