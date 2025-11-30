@@ -1,14 +1,41 @@
 'use client'
 import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Storage } from '@/lib/storage'
 import { formatNice } from '@/lib/date'
+import type { DailyCheckIn } from '@/lib/types'
 
 export default function DailyDetail() {
   const params = useParams()
   const router = useRouter()
+  const { data: session } = useSession()
   const id = params?.id as string
-  const d = Storage.getDaily(id)
+  const [d, setD] = useState<DailyCheckIn | null>(null)
+  const [loading, setLoading] = useState(true)
+  
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const data = await Storage.getDaily(id, session?.user?.id)
+        setD(data || null)
+      } catch (error) {
+        setD(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [id, session?.user?.id])
+  
+  if (loading) {
+    return (
+      <div className="section pb-24 md:pb-8">
+        <div className="empty-state">Loading...</div>
+      </div>
+    )
+  }
   
   if (!d) {
     return (

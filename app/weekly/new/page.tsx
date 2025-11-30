@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { Storage } from '@/lib/storage'
 import { startOfWeek, endOfWeek, toISO } from '@/lib/date'
 
@@ -23,10 +24,11 @@ type FormData = z.infer<typeof schema>
 
 export default function WeeklyNewPage() {
   const router = useRouter()
+  const { data: session } = useSession()
   const defaultStart = toISO(startOfWeek())
   const defaultEnd = toISO(endOfWeek())
 
-  const { register, handleSubmit } = useForm<FormData>({
+  const { register, handleSubmit, formState: { isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       weekStart: defaultStart,
@@ -38,25 +40,30 @@ export default function WeeklyNewPage() {
     }
   })
 
-  const onSubmit = (data: FormData) => {
-    Storage.upsertWeekly({
-      id: undefined,
-      weekStart: data.weekStart,
-      weekEnd: data.weekEnd,
-      strongCravings: data.strongCravings,
-      avgIntensity: data.avgIntensity,
-      commonEmotion: data.commonEmotion,
-      daysWithSnack: data.daysWithSnack,
-      wins: data.wins ?? '',
-      challenges: data.challenges ?? '',
-      insights: data.insights ?? '',
-      adjustment: data.adjustment ?? ''
-    })
-    router.push('/')
+  const onSubmit = async (data: FormData) => {
+    try {
+      await Storage.upsertWeekly({
+        id: undefined,
+        weekStart: data.weekStart,
+        weekEnd: data.weekEnd,
+        strongCravings: data.strongCravings,
+        avgIntensity: data.avgIntensity,
+        commonEmotion: data.commonEmotion,
+        daysWithSnack: data.daysWithSnack,
+        wins: data.wins ?? '',
+        challenges: data.challenges ?? '',
+        insights: data.insights ?? '',
+        adjustment: data.adjustment ?? ''
+      }, session?.user?.id)
+      router.push('/')
+    } catch (error) {
+      alert('Failed to save. Please try again.')
+      console.error(error)
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pb-24 md:pb-8">
       <div className="section space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -103,8 +110,10 @@ export default function WeeklyNewPage() {
           <textarea className="textarea" rows={3} placeholder="A gentle plan or experiment" {...register('adjustment')} />
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-secondary" type="submit">Save Weekly Reflection</button>
-          <button className="btn btn-ghost" type="button" onClick={()=>history.back()}>Cancel</button>
+          <button className="btn btn-secondary" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : 'Save Weekly Reflection'}
+          </button>
+          <button className="btn btn-ghost" type="button" onClick={()=>router.back()}>Cancel</button>
         </div>
       </div>
     </form>

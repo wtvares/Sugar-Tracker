@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { Storage } from '@/lib/storage'
 import { CravingReason, FeelAfter, UsedPause } from '@/lib/types'
 import { todayISO } from '@/lib/date'
@@ -26,7 +27,8 @@ const REASONS: CravingReason[] = ['Stress','Boredom','Emotional comfort','Hunger
 
 export default function DailyNewPage() {
   const router = useRouter()
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
+  const { data: session } = useSession()
+  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       date: todayISO(),
@@ -39,21 +41,26 @@ export default function DailyNewPage() {
     }
   })
 
-  const onSubmit = (data: FormData) => {
-    Storage.upsertDaily({
-      id: undefined,
-      date: data.date,
-      afternoonSnack: data.afternoonSnack,
-      cravingIntensity: data.cravingIntensity,
-      stressLevel: data.stressLevel,
-      reasons: data.reasons as CravingReason[],
-      usedPause: data.usedPause,
-      whatAte: data.whatAte ?? '',
-      feelAfter: data.feelAfter,
-      goodThing: data.goodThing ?? '',
-      hardThing: data.hardThing ?? ''
-    })
-    router.push('/')
+  const onSubmit = async (data: FormData) => {
+    try {
+      await Storage.upsertDaily({
+        id: undefined,
+        date: data.date,
+        afternoonSnack: data.afternoonSnack,
+        cravingIntensity: data.cravingIntensity,
+        stressLevel: data.stressLevel,
+        reasons: data.reasons as CravingReason[],
+        usedPause: data.usedPause,
+        whatAte: data.whatAte ?? '',
+        feelAfter: data.feelAfter,
+        goodThing: data.goodThing ?? '',
+        hardThing: data.hardThing ?? ''
+      }, session?.user?.id)
+      router.push('/')
+    } catch (error) {
+      alert('Failed to save. Please try again.')
+      console.error(error)
+    }
   }
 
   const toggleReason = (r: string) => {
@@ -68,7 +75,7 @@ export default function DailyNewPage() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pb-24 md:pb-8">
       <div className="section space-y-3">
         <div>
           <label className="label">Date</label>
@@ -134,8 +141,10 @@ export default function DailyNewPage() {
           <textarea className="textarea" rows={2} placeholder="Name a challenge without judgment" {...register('hardThing')} />
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-primary" type="submit">Save Daily Check-In</button>
-          <button className="btn btn-ghost" type="button" onClick={()=>history.back()}>Cancel</button>
+          <button className="btn btn-primary" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : 'Save Daily Check-In'}
+          </button>
+          <button className="btn btn-ghost" type="button" onClick={()=>router.back()}>Cancel</button>
         </div>
       </div>
     </form>

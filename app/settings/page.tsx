@@ -1,47 +1,91 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { Storage } from '@/lib/storage'
 
 export default function SettingsPage() {
+  const { data: session } = useSession()
   const [remindersEnabled, setRemindersEnabled] = useState(false)
   const [checkInHour, setCheckInHour] = useState(15)
   const [name, setName] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const prefs = Storage.getPrefs()
-    setRemindersEnabled(prefs.remindersEnabled)
-    setCheckInHour(prefs.checkInHour)
-    setName(prefs.name || '')
-  }, [])
-
-  const save = () => {
-    Storage.setPrefs({ remindersEnabled, checkInHour, name })
-    if (remindersEnabled && typeof window !== 'undefined' && 'Notification' in window) {
-      Notification.requestPermission()
+    const loadPrefs = async () => {
+      try {
+        const prefs = await Storage.getPrefs(session?.user?.id)
+        setRemindersEnabled(prefs.remindersEnabled)
+        setCheckInHour(prefs.checkInHour)
+        setName(prefs.name || '')
+      } catch (error) {
+        console.error('Failed to load preferences', error)
+      } finally {
+        setLoading(false)
+      }
     }
-    alert('Preferences saved')
+    loadPrefs()
+  }, [session?.user?.id])
+
+  const save = async () => {
+    try {
+      await Storage.setPrefs({ remindersEnabled, checkInHour, name }, session?.user?.id)
+      if (remindersEnabled && typeof window !== 'undefined' && 'Notification' in window) {
+        Notification.requestPermission()
+      }
+      alert('Preferences saved')
+    } catch (error) {
+      alert('Failed to save preferences. Please try again.')
+      console.error(error)
+    }
   }
 
-  const exportData = () => {
-    const blob = new Blob([Storage.exportAll()], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'cravings_data.json'
-    a.click()
-    URL.revokeObjectURL(url)
+  const exportData = async () => {
+    try {
+      const data = await Storage.exportAll(session?.user?.id)
+      const blob = new Blob([data], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'cravings_data.json'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      alert('Failed to export data. Please try again.')
+      console.error(error)
+    }
   }
 
-  const importData = (file: File) => {
+  const importData = async (file: File) => {
     const reader = new FileReader()
-    reader.onload = () => {
-      try { Storage.importAll(reader.result as string); alert('Import complete. Refresh the page to see updates.') } catch { alert('Invalid file') }
+    reader.onload = async () => {
+      try {
+        await Storage.importAll(reader.result as string, session?.user?.id)
+        alert('Import complete. Refresh the page to see updates.')
+        // Reload preferences
+        const prefs = await Storage.getPrefs(session?.user?.id)
+        setRemindersEnabled(prefs.remindersEnabled)
+        setCheckInHour(prefs.checkInHour)
+        setName(prefs.name || '')
+      } catch (error) {
+        alert('Invalid file or failed to import. Please try again.')
+        console.error(error)
+      }
     }
     reader.readAsText(file)
   }
 
+  if (loading) {
+    return (
+      <div className="space-y-4 pb-24 md:pb-8">
+        <div className="section">
+          <div className="empty-state">Loading...</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-24 md:pb-8">
       <div className="section space-y-3">
         <div className="section-title">Preferences</div>
         <div>

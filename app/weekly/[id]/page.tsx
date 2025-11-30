@@ -1,15 +1,53 @@
 'use client'
 import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { Storage } from '@/lib/storage'
+import type { WeeklyReflection } from '@/lib/types'
 
 export default function WeeklyDetail() {
   const params = useParams()
   const router = useRouter()
+  const { data: session } = useSession()
   const id = params?.id as string
-  const w = Storage.getWeekly(id)
-  if (!w) return <div className="section">Entry not found.</div>
+  const [w, setW] = useState<WeeklyReflection | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const data = await Storage.getWeekly(id, session?.user?.id)
+        setW(data || null)
+      } catch (error) {
+        setW(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [id, session?.user?.id])
+
+  if (loading) {
+    return (
+      <div className="section pb-24 md:pb-8">
+        <div className="empty-state">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!w) {
+    return (
+      <div className="section pb-24 md:pb-8">
+        <div className="empty-state">
+          <p className="text-warmgray-500 mb-4">Entry not found.</p>
+          <button className="btn btn-primary" onClick={() => router.back()}>Back</button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-24 md:pb-8">
       <div className="section">
         <div className="section-title">Weekly Reflection • {w.weekStart} → {w.weekEnd}</div>
         <dl className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
