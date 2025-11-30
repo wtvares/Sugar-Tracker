@@ -23,8 +23,8 @@ const chartOptions = {
       backgroundColor: 'rgba(0, 0, 0, 0.8)',
       padding: 12,
       titleFont: { 
-        size: 14, 
-        weight: 700 as const  // Use numeric weight (700 = bold)
+        size: 14
+        // Removed weight property - Chart.js will use default bold
       },
       bodyFont: { size: 13 },
       cornerRadius: 8,
