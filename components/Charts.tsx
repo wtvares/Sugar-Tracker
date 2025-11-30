@@ -24,7 +24,7 @@ const chartOptions = {
       padding: 12,
       titleFont: { 
         size: 14, 
-        weight: 'bold' as const 
+        weight: 700 as const  // Use numeric weight (700 = bold)
       },
       bodyFont: { size: 13 },
       cornerRadius: 8,
