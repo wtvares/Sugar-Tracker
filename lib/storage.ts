@@ -2,12 +2,25 @@
 import { DailyCheckIn, WeeklyReflection, Preferences } from './types'
 import { uid } from './id'
 import { todayISO } from './date'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Lazy initialization of Supabase client
+function getSupabaseClient(): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  
+  if (!url || !key) {
+    console.warn('Supabase environment variables not configured. Using localStorage fallback.')
+    return null
+  }
+  
+  try {
+    return createClient(url, key)
+  } catch (error) {
+    console.error('Failed to create Supabase client:', error)
+    return null
+  }
+}
 
 // Fallback to localStorage if not authenticated
 const DAILY_KEY = 'ct_daily'
@@ -32,29 +45,52 @@ function safeSet<T>(key: string, value: T) {
 export const Storage = {
   async listDaily(userId?: string): Promise<DailyCheckIn[]> {
     if (userId) {
-      const { data, error } = await supabase
-        .from('daily_checkins')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: true })
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        // Fallback to localStorage if Supabase not configured
+        return safeGet<DailyCheckIn[]>(DAILY_KEY, []).sort((a,b)=>a.date.localeCompare(b.date))
+      }
       
-      if (error || !data) return []
-      return data.map(transformDailyFromDB)
+      try {
+        const { data, error } = await supabase
+          .from('daily_checkins')
+          .select('*')
+          .eq('user_id', userId)
+          .order('date', { ascending: true })
+        
+        if (error || !data) return []
+        return data.map(transformDailyFromDB)
+      } catch (error) {
+        console.error('Error fetching daily check-ins:', error)
+        return safeGet<DailyCheckIn[]>(DAILY_KEY, []).sort((a,b)=>a.date.localeCompare(b.date))
+      }
     }
     return safeGet<DailyCheckIn[]>(DAILY_KEY, []).sort((a,b)=>a.date.localeCompare(b.date))
   },
 
   async getDaily(id: string, userId?: string): Promise<DailyCheckIn | undefined> {
     if (userId) {
-      const { data, error } = await supabase
-        .from('daily_checkins')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', userId)
-        .single()
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        const list = await this.listDaily()
+        return list.find(d => d.id === id)
+      }
       
-      if (error || !data) return undefined
-      return transformDailyFromDB(data)
+      try {
+        const { data, error } = await supabase
+          .from('daily_checkins')
+          .select('*')
+          .eq('id', id)
+          .eq('user_id', userId)
+          .single()
+        
+        if (error || !data) return undefined
+        return transformDailyFromDB(data)
+      } catch (error) {
+        console.error('Error fetching daily check-in:', error)
+        const list = await this.listDaily()
+        return list.find(d => d.id === id)
+      }
     }
     const list = await this.listDaily()
     return list.find(d => d.id === id)
@@ -62,15 +98,51 @@ export const Storage = {
 
   async upsertDaily(input: Omit<DailyCheckIn,'id'|'createdAt'> & Partial<Pick<DailyCheckIn,'id'|'createdAt'>>, userId?: string): Promise<DailyCheckIn> {
     if (userId) {
-      const dbData = transformDailyToDB(input, userId)
-      const { data, error } = await supabase
-        .from('daily_checkins')
-        .upsert(dbData, { onConflict: 'id' })
-        .select()
-        .single()
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        // Fallback to localStorage
+        const list = await this.listDaily()
+        let item: DailyCheckIn
+        if (input.id) {
+          item = { ...(input as DailyCheckIn), createdAt: input.createdAt ?? new Date().toISOString() }
+          const idx = list.findIndex(d => d.id === input.id)
+          if (idx >= 0) list[idx] = item
+          else list.push(item)
+        } else {
+          item = { ...(input as DailyCheckIn), id: uid(), createdAt: new Date().toISOString() }
+          list.push(item)
+        }
+        safeSet(DAILY_KEY, list)
+        return item
+      }
       
-      if (error || !data) throw new Error('Failed to save')
-      return transformDailyFromDB(data)
+      try {
+        const dbData = transformDailyToDB(input, userId)
+        const { data, error } = await supabase
+          .from('daily_checkins')
+          .upsert(dbData, { onConflict: 'id' })
+          .select()
+          .single()
+        
+        if (error || !data) throw new Error('Failed to save')
+        return transformDailyFromDB(data)
+      } catch (error) {
+        console.error('Error saving daily check-in:', error)
+        // Fallback to localStorage
+        const list = await this.listDaily()
+        let item: DailyCheckIn
+        if (input.id) {
+          item = { ...(input as DailyCheckIn), createdAt: input.createdAt ?? new Date().toISOString() }
+          const idx = list.findIndex(d => d.id === input.id)
+          if (idx >= 0) list[idx] = item
+          else list.push(item)
+        } else {
+          item = { ...(input as DailyCheckIn), id: uid(), createdAt: new Date().toISOString() }
+          list.push(item)
+        }
+        safeSet(DAILY_KEY, list)
+        return item
+      }
     }
     
     // Fallback to localStorage
@@ -92,15 +164,27 @@ export const Storage = {
   async todayDaily(userId?: string): Promise<DailyCheckIn | undefined> {
     const today = todayISO()
     if (userId) {
-      const { data, error } = await supabase
-        .from('daily_checkins')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('date', today)
-        .single()
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        const list = await this.listDaily()
+        return list.find(d => d.date === today)
+      }
       
-      if (error || !data) return undefined
-      return transformDailyFromDB(data)
+      try {
+        const { data, error } = await supabase
+          .from('daily_checkins')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('date', today)
+          .single()
+        
+        if (error || !data) return undefined
+        return transformDailyFromDB(data)
+      } catch (error) {
+        console.error('Error fetching today daily:', error)
+        const list = await this.listDaily()
+        return list.find(d => d.date === today)
+      }
     }
     const list = await this.listDaily()
     return list.find(d => d.date === today)
@@ -108,29 +192,51 @@ export const Storage = {
 
   async listWeekly(userId?: string): Promise<WeeklyReflection[]> {
     if (userId) {
-      const { data, error } = await supabase
-        .from('weekly_reflections')
-        .select('*')
-        .eq('user_id', userId)
-        .order('week_start', { ascending: true })
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        return safeGet<WeeklyReflection[]>(WEEKLY_KEY, []).sort((a,b)=>a.weekStart.localeCompare(b.weekStart))
+      }
       
-      if (error || !data) return []
-      return data.map(transformWeeklyFromDB)
+      try {
+        const { data, error } = await supabase
+          .from('weekly_reflections')
+          .select('*')
+          .eq('user_id', userId)
+          .order('week_start', { ascending: true })
+        
+        if (error || !data) return []
+        return data.map(transformWeeklyFromDB)
+      } catch (error) {
+        console.error('Error fetching weekly reflections:', error)
+        return safeGet<WeeklyReflection[]>(WEEKLY_KEY, []).sort((a,b)=>a.weekStart.localeCompare(b.weekStart))
+      }
     }
     return safeGet<WeeklyReflection[]>(WEEKLY_KEY, []).sort((a,b)=>a.weekStart.localeCompare(b.weekStart))
   },
 
   async getWeekly(id: string, userId?: string): Promise<WeeklyReflection | undefined> {
     if (userId) {
-      const { data, error } = await supabase
-        .from('weekly_reflections')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', userId)
-        .single()
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        const list = await this.listWeekly()
+        return list.find(d => d.id === id)
+      }
       
-      if (error || !data) return undefined
-      return transformWeeklyFromDB(data)
+      try {
+        const { data, error } = await supabase
+          .from('weekly_reflections')
+          .select('*')
+          .eq('id', id)
+          .eq('user_id', userId)
+          .single()
+        
+        if (error || !data) return undefined
+        return transformWeeklyFromDB(data)
+      } catch (error) {
+        console.error('Error fetching weekly reflection:', error)
+        const list = await this.listWeekly()
+        return list.find(d => d.id === id)
+      }
     }
     const list = await this.listWeekly()
     return list.find(d => d.id === id)
@@ -138,15 +244,51 @@ export const Storage = {
 
   async upsertWeekly(input: Omit<WeeklyReflection,'id'|'createdAt'> & Partial<Pick<WeeklyReflection,'id'|'createdAt'>>, userId?: string): Promise<WeeklyReflection> {
     if (userId) {
-      const dbData = transformWeeklyToDB(input, userId)
-      const { data, error } = await supabase
-        .from('weekly_reflections')
-        .upsert(dbData, { onConflict: 'id' })
-        .select()
-        .single()
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        // Fallback to localStorage
+        const list = await this.listWeekly()
+        let item: WeeklyReflection
+        if (input.id) {
+          item = { ...(input as WeeklyReflection), createdAt: input.createdAt ?? new Date().toISOString() }
+          const idx = list.findIndex(d => d.id === input.id)
+          if (idx >= 0) list[idx] = item
+          else list.push(item)
+        } else {
+          item = { ...(input as WeeklyReflection), id: uid(), createdAt: new Date().toISOString() }
+          list.push(item)
+        }
+        safeSet(WEEKLY_KEY, list)
+        return item
+      }
       
-      if (error || !data) throw new Error('Failed to save')
-      return transformWeeklyFromDB(data)
+      try {
+        const dbData = transformWeeklyToDB(input, userId)
+        const { data, error } = await supabase
+          .from('weekly_reflections')
+          .upsert(dbData, { onConflict: 'id' })
+          .select()
+          .single()
+        
+        if (error || !data) throw new Error('Failed to save')
+        return transformWeeklyFromDB(data)
+      } catch (error) {
+        console.error('Error saving weekly reflection:', error)
+        // Fallback to localStorage
+        const list = await this.listWeekly()
+        let item: WeeklyReflection
+        if (input.id) {
+          item = { ...(input as WeeklyReflection), createdAt: input.createdAt ?? new Date().toISOString() }
+          const idx = list.findIndex(d => d.id === input.id)
+          if (idx >= 0) list[idx] = item
+          else list.push(item)
+        } else {
+          item = { ...(input as WeeklyReflection), id: uid(), createdAt: new Date().toISOString() }
+          list.push(item)
+        }
+        safeSet(WEEKLY_KEY, list)
+        return item
+      }
     }
     
     // Fallback to localStorage
@@ -167,19 +309,29 @@ export const Storage = {
 
   async getPrefs(userId?: string): Promise<Preferences> {
     if (userId) {
-      const { data, error } = await supabase
-        .from('preferences')
-        .select('*')
-        .eq('user_id', userId)
-        .single()
-      
-      if (error || !data) {
-        return { remindersEnabled: false, checkInHour: 15 }
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        return safeGet<Preferences>(PREFS_KEY, { remindersEnabled: false, checkInHour: 15 })
       }
-      return {
-        name: data.name || undefined,
-        remindersEnabled: data.reminders_enabled,
-        checkInHour: data.check_in_hour
+      
+      try {
+        const { data, error } = await supabase
+          .from('preferences')
+          .select('*')
+          .eq('user_id', userId)
+          .single()
+        
+        if (error || !data) {
+          return { remindersEnabled: false, checkInHour: 15 }
+        }
+        return {
+          name: data.name || undefined,
+          remindersEnabled: data.reminders_enabled,
+          checkInHour: data.check_in_hour
+        }
+      } catch (error) {
+        console.error('Error fetching preferences:', error)
+        return safeGet<Preferences>(PREFS_KEY, { remindersEnabled: false, checkInHour: 15 })
       }
     }
     return safeGet<Preferences>(PREFS_KEY, { remindersEnabled: false, checkInHour: 15 })
@@ -187,18 +339,30 @@ export const Storage = {
 
   async setPrefs(p: Preferences, userId?: string): Promise<void> {
     if (userId) {
-      const { error } = await supabase
-        .from('preferences')
-        .upsert({
-          user_id: userId,
-          name: p.name,
-          reminders_enabled: p.remindersEnabled,
-          check_in_hour: p.checkInHour,
-          updated_at: new Date().toISOString()
-        })
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        safeSet(PREFS_KEY, p)
+        return
+      }
       
-      if (error) throw new Error('Failed to save preferences')
-      return
+      try {
+        const { error } = await supabase
+          .from('preferences')
+          .upsert({
+            user_id: userId,
+            name: p.name,
+            reminders_enabled: p.remindersEnabled,
+            check_in_hour: p.checkInHour,
+            updated_at: new Date().toISOString()
+          })
+        
+        if (error) throw new Error('Failed to save preferences')
+        return
+      } catch (error) {
+        console.error('Error saving preferences:', error)
+        safeSet(PREFS_KEY, p)
+        return
+      }
     }
     safeSet(PREFS_KEY, p)
   },
