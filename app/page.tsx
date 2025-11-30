@@ -1,6 +1,7 @@
 'use client'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import StatCard from '@/components/StatCard'
 import { Storage } from '@/lib/storage'
@@ -9,42 +10,56 @@ import { LineChart, PieChart, BarChart } from '@/components/Charts'
 import { formatNice } from '@/lib/date'
 
 export default function Page() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const [dailies, setDailies] = useState<any[]>([])
   const [today, setToday] = useState<any>(null)
   const [weekly, setWeekly] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const loadData = async () => {
-      if (session?.user?.id) {
-        const [dailyList, todayData, weeklyList] = await Promise.all([
-          Storage.listDaily(session.user.id),
-          Storage.todayDaily(session.user.id),
-          Storage.listWeekly(session.user.id)
-        ])
-        setDailies(dailyList)
-        setToday(todayData)
-        setWeekly(weeklyList)
-      } else {
-        // Fallback to localStorage - these are now async too, but can work without await for initial load
-        // For better UX, you might want to make these async as well
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin')
+      return
+    }
+
+    if (status === 'authenticated' && session?.user?.id) {
+      const loadData = async () => {
         try {
-          const dailyList = await Storage.listDaily()
-          const todayData = await Storage.todayDaily()
-          const weeklyList = await Storage.listWeekly()
+          const [dailyList, todayData, weeklyList] = await Promise.all([
+            Storage.listDaily(session.user.id),
+            Storage.todayDaily(session.user.id),
+            Storage.listWeekly(session.user.id)
+          ])
           setDailies(dailyList)
           setToday(todayData)
           setWeekly(weeklyList)
-        } catch {
-          // If async fails, set empty arrays
+        } catch (error) {
+          console.error('Error loading data:', error)
           setDailies([])
           setToday(null)
           setWeekly([])
+        } finally {
+          setLoading(false)
         }
       }
+      loadData()
     }
-    loadData()
-  }, [session])
+  }, [session, status, router])
+
+  if (status === 'loading' || loading) {
+    return (
+      <div className="space-y-5 pb-24 md:pb-8">
+        <div className="section">
+          <div className="empty-state">Loading...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!session?.user?.id) {
+    return null // Will redirect
+  }
 
   const summary7 = lastNDays(dailies, 7)
   const streak = computeStreak(dailies)
@@ -176,3 +191,4 @@ export default function Page() {
     </div>
   )
 }
+

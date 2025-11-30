@@ -3,10 +3,23 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Only create Supabase client if env vars exist
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  
+  if (!url || !key) {
+    console.error('Supabase environment variables not configured')
+    return null
+  }
+  
+  try {
+    return createClient(url, key)
+  } catch (error) {
+    console.error('Failed to create Supabase client:', error)
+    return null
+  }
+}
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -23,6 +36,12 @@ const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          return null
+        }
+
+        const supabase = getSupabaseClient()
+        if (!supabase) {
+          console.error('Supabase not configured - authentication disabled')
           return null
         }
 
@@ -71,7 +90,8 @@ const authOptions: NextAuthOptions = {
           }
 
           return null
-        } catch {
+        } catch (error) {
+          console.error('Authentication error:', error)
           return null
         }
       }
