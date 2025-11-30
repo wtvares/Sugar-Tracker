@@ -22,11 +22,12 @@ const chartOptions = {
     tooltip: {
       backgroundColor: 'rgba(0, 0, 0, 0.8)',
       padding: 12,
-      titleFont: { 
+      titleFont: {
         size: 14
-        // Removed weight property - Chart.js will use default bold
       },
-      bodyFont: { size: 13 },
+      bodyFont: { 
+        size: 13 
+      },
       cornerRadius: 8,
     }
   },
@@ -51,7 +52,7 @@ const chartOptions = {
       }
     }
   }
-}
+} as const
 
 export function LineChart({ labels, data, label }: { labels: string[], data: number[], label: string }) {
   return (
@@ -74,7 +75,7 @@ export function LineChart({ labels, data, label }: { labels: string[], data: num
               pointBorderWidth: 2,
             }]
           }} 
-          options={chartOptions} 
+          options={chartOptions as any} 
         />
       </div>
     </div>
@@ -96,7 +97,7 @@ export function BarChart({ labels, data, label }: { labels: string[], data: numb
               borderRadius: 6,
             }]
           }} 
-          options={chartOptions} 
+          options={chartOptions as any} 
         />
       </div>
     </div>
@@ -133,7 +134,7 @@ export function PieChart({ labels, data }: { labels: string[], data: number[] })
                 }
               }
             }
-          }} 
+          } as any} 
         />
       </div>
     </div>
